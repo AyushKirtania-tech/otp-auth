@@ -9,13 +9,13 @@ export function verifyRegisterToken(
   res: Response,
   next: NextFunction
 ) {
-  const token =
-    req.headers["authorization"]?.split(" ")[1] || req.body.verificationToken;
+  const token = req.cookies.customer_phone_verify_token;
 
   if (!token) {
     return res.status(401).json({
       success: false,
       message: "Verification token missing",
+      token,
     });
   }
 

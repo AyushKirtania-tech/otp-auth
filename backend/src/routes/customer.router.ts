@@ -4,7 +4,10 @@ import { sendOtp, verifyOtp } from "../services/otp.service";
 import { customerRegisterSchema } from "../schemas/customer.schema";
 import {
   checkExistingCustomer,
+  checkExistingCustomerWithEmail,
   createCustomer,
+  updateCustomer,
+  updatedCustomerSchema,
 } from "../controllers/customer.controller";
 import jwt from "jsonwebtoken";
 import {
@@ -12,7 +15,6 @@ import {
   verifyRegisterToken,
 } from "../middlewares/customer.middleware";
 import prisma from "../config/prisma";
-import { success } from "zod";
 
 const JWT_SECRET = process.env.JWT_SECRET || "";
 
@@ -95,10 +97,16 @@ router.post("/register/verify", async (req: Request, res: Response) => {
       expiresIn: "10m",
     });
 
+    res.cookie("customer_phone_verify_token",verificationToken,{
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 1000,
+  });
+
     return res.status(200).json({
       success: true,
       message: "Phone verified",
-      verificationToken,
     });
   } catch (error) {
     console.log("Error: ", error);
@@ -299,5 +307,61 @@ router.get("/info", async (req: Request, res: Response) => {
     customer: customerDetails,
   });
 });
+
+// PATCH /customer/update
+router.patch(
+  "/update",
+  async (req: Request, res: Response) => {
+    try {
+      const customerId = (req as any).customer.id as string;
+
+      // Extract possible fields
+      const { name, email, phone, address } = req.body;
+
+      // Build update object ONLY with provided fields
+      const dataToUpdate: updatedCustomerSchema = {};
+
+      if (name !== undefined) dataToUpdate.name = name;
+      if (email !== undefined) dataToUpdate.email = email;
+      if (phone !== undefined) dataToUpdate.phone = phone;
+      if (address !== undefined) dataToUpdate.address = address;
+
+      if (Object.keys(dataToUpdate).length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: "No updatable fields provided.",
+        });
+      }
+
+      // ensure email is unique
+      if (dataToUpdate.email) {
+        const existing = await checkExistingCustomerWithEmail(dataToUpdate.email);
+        if (existing) {
+          return res.status(409).json({
+            success: false,
+            message: "Email already in use.",
+          });
+        }
+      }
+
+      // Update customer using your controller method
+      const updatedCustomer = await updateCustomer(dataToUpdate, customerId);
+
+      return res.json({
+        success: true,
+        message: "Customer updated successfully.",
+        customer: updatedCustomer,
+      });
+
+    } catch (err) {
+      console.error(err);
+      return res
+        .status(500)
+        .json({ success: false, message: "Internal Server Error." });
+    }
+  }
+);
+
+
 
 export default router;

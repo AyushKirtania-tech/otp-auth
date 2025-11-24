@@ -1,4 +1,4 @@
-import primsa from "../config/prisma";
+import prisma from "../config/prisma";
 
 // Interface for the create customer args
 interface createCustomerSchema {
@@ -11,11 +11,29 @@ interface createCustomerSchema {
   documents: string[];
 }
 
+//interface for customer update
+export interface updatedCustomerSchema {
+   name?: string;
+   email?: string;
+   phone?: string;
+   address?: string;
+}
+
 // Function to check if customer already exists!!!
 export async function checkExistingCustomer(phone: string) {
-  const existing = await primsa?.customer.findFirst({
+  const existing = await prisma?.customer.findFirst({
     where: {
       OR: [{ phone }],
+    },
+  });
+
+  return existing;
+}
+
+export async function checkExistingCustomerWithEmail(email: string) {
+  const existing = await prisma?.customer.findFirst({
+    where: {
+      OR: [{ email }],
     },
   });
 
@@ -32,7 +50,7 @@ export async function createCustomer(
     data;
 
   // Using prisma client to add customer to db
-  return await primsa?.customer.create({
+  return await prisma?.customer.create({
     data: {
       name,
       phone,
@@ -52,4 +70,19 @@ export async function createCustomer(
       address: true,
     },
   });
+}
+
+export async function updateCustomer(data:updatedCustomerSchema, customerId: string) {
+   return await prisma?.customer.update({
+        where: { id: customerId },
+        data,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          address: true,
+          createdAt: true,
+        }, // explicitly select public fields (do not return password/secret fields)
+      });
 }
