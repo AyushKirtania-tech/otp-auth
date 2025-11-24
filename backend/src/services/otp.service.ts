@@ -1,5 +1,6 @@
 import { redis } from "../config/redis";
 import { generateOtp } from "../utils/generateOtp";
+import { otpQueue } from "../config/queue";
 
 const OTP_EXPIRY = 300; // 5 minutes
 
@@ -11,6 +12,15 @@ export async function sendOtp(phone: string) {
   await redis.set(`otp:${phone}`, otp, "EX", OTP_EXPIRY);
 
   // TODO: Publish to queue -> worker will send SMS
+  // Publish to queue -> worker will send SMS
+  await otpQueue.add("send-otp", {
+    phone,
+    otp,
+    timestamp: new Date().toISOString(),
+  });
+
+  console.log(`OTP job added to queue for ${phone}`);
+
   // await queue.publish("SEND_OTP", { phone, otp });
 
   return { phone, otp };
