@@ -1,4 +1,4 @@
-import z, { email } from "zod";
+import { z } from "zod";
 
 export const customerRegisterSchema = z.object({
   name: z.string().min(3).max(30),
@@ -13,4 +13,21 @@ export const customerRegisterSchema = z.object({
 export const customerLoginSchema = z.object({
   phone: z.string().max(10),
   otp: z.string().max(6),
+});
+
+export const createOrderSchema = z.object({
+  customerId: z.string().uuid(),
+  items: z
+    .array(
+      z.object({
+        feeType: z.enum(["POULTRY", "FISH", "CATTLE", "SWINE", "PET", "OTHER"]),
+        quantity: z.number().positive(),
+        price: z.number().positive(),
+      })
+    )
+    .min(1),
+  paymentMethod: z.enum(["CASH", "UPI", "BANK_TRANSFER", "CHEQUE"]).optional(),
+  deliveryDate: z.string().refine((date) => !isNaN(Date.parse(date)), {
+    message: "Invalid date",
+  }),
 });

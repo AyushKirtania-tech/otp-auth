@@ -2,8 +2,15 @@ import jwt from "jsonwebtoken";
 import { Router, Request, Response } from "express";
 import { normalizePhone } from "../utils/normalizePhone";
 import { sendOtp, verifyOtp } from "../services/otp.service";
-import { customerRegisterSchema } from "../schemas/customer.schema";
-import { updatedCustomerSchema } from "../controllers/customer.controller";
+import {
+  createOrderSchema,
+  customerRegisterSchema,
+} from "../schemas/customer.schema";
+import {
+  findUniqueCustomer,
+  placeOrder,
+  updatedCustomerSchema,
+} from "../controllers/customer.controller";
 import {
   checkExistingCustomer,
   checkExistingCustomerWithEmail,
@@ -308,7 +315,7 @@ router.get("/info", async (req: Request, res: Response) => {
   });
 });
 
-// PATCH /customer/update
+// Route to update the customer data
 router.patch("/update", async (req: Request, res: Response) => {
   try {
     const customerId = (req as any).customer.id as string;
@@ -355,6 +362,58 @@ router.patch("/update", async (req: Request, res: Response) => {
     return res
       .status(500)
       .json({ success: false, message: "Internal Server Error." });
+  }
+});
+
+// POST /:customerId/order
+router.post("/:customerId/order", async (req: Request, res: Response) => {
+  const { customerId } = req.params;
+
+  // Validate request body
+  const parsed = createOrderSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error });
+  }
+
+  const { items, paymentMethod, deliveryDate } = parsed.data;
+
+  try {
+    // Check if customer exists
+    const customer = await findUniqueCustomer(customerId);
+
+    if (!customer) {
+      return res.status(404).json({ error: "Customer not found" });
+    }
+
+    // Calculate totals
+    const totalAmount = items.reduce(
+      (sum, item) => sum + item.quantity * item.price,
+      0
+    );
+
+    // FIXED: Correct parameter order — normalize item property name (feeType -> feedType)
+    const orderItems = items.map((i: any) => ({
+      feedType: i.feedType ?? i.feeType,
+      quantity: i.quantity,
+      price: i.price,
+    }));
+    const order = await placeOrder(
+      customerId,
+      deliveryDate,
+      paymentMethod,
+      totalAmount,
+      orderItems
+    );
+
+    return res.status(201).json({
+      message: "Order placed successfully",
+      order,
+    });
+  } catch (err) {
+    console.error("Order placement failed:", err);
+    return res.status(500).json({
+      error: "Something went wrong while placing the order",
+    });
   }
 });
 

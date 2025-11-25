@@ -1,4 +1,5 @@
 import prisma from "../config/prisma";
+import { PaymentMethod, FeedType } from "@prisma/client";
 
 // Interface for the create customer args
 interface createCustomerSchema {
@@ -13,10 +14,10 @@ interface createCustomerSchema {
 
 //interface for customer update
 export interface updatedCustomerSchema {
-   name?: string;
-   email?: string;
-   phone?: string;
-   address?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
 }
 
 // Function to check if customer already exists!!!
@@ -72,17 +73,55 @@ export async function createCustomer(
   });
 }
 
-export async function updateCustomer(data:updatedCustomerSchema, customerId: string) {
-   return await prisma?.customer.update({
-        where: { id: customerId },
-        data,
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          phone: true,
-          address: true,
-          createdAt: true,
-        }, // explicitly select public fields (do not return password/secret fields)
-      });
+export async function updateCustomer(
+  data: updatedCustomerSchema,
+  customerId: string
+) {
+  return await prisma?.customer.update({
+    where: { id: customerId },
+    data,
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      address: true,
+      createdAt: true,
+    }, // explicitly select public fields (do not return password/secret fields)
+  });
+}
+
+export async function findUniqueCustomer(customerId: string) {
+  return await prisma?.customer.findUnique({
+    where: { id: customerId },
+  });
+}
+
+export async function placeOrder(
+  customerId: string,
+  deliveryDate: string,
+  paymentMethod: PaymentMethod | undefined,
+  totalAmount: number,
+  items: Array<{ feedType: FeedType; quantity: number; price: number }>
+) {
+  return await prisma?.order.create({
+    data: {
+      customerId,
+      deliveryDate: new Date(deliveryDate),
+      paymentMethod,
+      totalAmount,
+      pendingAmount: totalAmount,
+
+      items: {
+        create: items.map((i) => ({
+          feedType: i.feedType,
+          quantity: i.quantity,
+          price: i.price,
+        })),
+      },
+    },
+    include: {
+      items: true,
+    },
+  });
 }
