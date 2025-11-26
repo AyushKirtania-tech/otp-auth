@@ -1,52 +1,86 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import axios from "axios";
+import { BACKEND_URL } from "@/config";
 import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import toast, { Toaster } from "react-hot-toast";
 
 export default function OTPVerifyPage() {
   const router = useRouter();
-  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
-  const phone = typeof window !== "undefined" ? localStorage.getItem("register_phone") : "";
 
+  const phone =
+    typeof window !== "undefined" ? localStorage.getItem("register_phone") : "";
+
+  const [otp, setOtp] = useState(Array(6).fill(""));
+
+  // Redirect if no phone found
   useEffect(() => {
-    if (!phone) router.push("/register");
+    if (!phone) router.replace("/register");
   }, [phone, router]);
 
+  // Handle digit updates
   const handleChange = (index: number, value: string) => {
     if (!/^\d?$/.test(value)) return;
-    const newOtp = [...otp];
-    newOtp[index] = value;
-    setOtp(newOtp);
+
+    const updated = [...otp];
+    updated[index] = value;
+    setOtp(updated);
+
     if (value && index < 5) {
       document.getElementById(`otp-${index + 1}`)?.focus();
     }
   };
 
+  // Compact verify function
   const verifyOTP = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const res = await fetch("http://localhost:5000/api/v1/customer/otp/verify", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone, otp: otp.join("") }),
-    });
+    try {
+      const { data } = await axios.post(
+        `${BACKEND_URL}/customer/register/verify`,
+        {
+          phoneNumber: phone,
+          otp: otp.join(""),
+        },
+        { withCredentials: true }
+      );
 
-    const json = await res.json();
-    if (json.success) {
-      router.push("/register/form");
-    } else {
-      alert(json.message);
+      if (data.success) {
+        console.log("OTP verified successfully: ", data);
+        router.push("/register/form");
+      } else toast.error(data.message);
+
+      console.log("Data: ", data);
+    } catch (err) {
+      console.error(err);
+      toast.error("Something went wrong while verifying OTP.");
     }
   };
 
   return (
+    // existing UI unchanged
     <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-gray-50 via-white to-gray-50 px-4">
-      <form onSubmit={verifyOTP} className="bg-white p-6 md:p-8 rounded-2xl shadow-xl border border-gray-200 w-full max-w-md">
+      <Toaster position="top-center" reverseOrder={false} />
+      <form
+        onSubmit={verifyOTP}
+        className="bg-white p-6 md:p-8 rounded-2xl shadow-xl border border-gray-200 w-full max-w-md"
+      >
+        {/* ... your entire UI stays identical ... */}
         <div className="text-center mb-6">
           <div className="w-16 h-16 bg-linear-to-br from-orange-500 to-orange-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            <svg
+              className="w-8 h-8 text-white"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+              />
             </svg>
           </div>
           <h1 className="text-2xl font-bold text-gray-800 mb-2">Enter OTP</h1>

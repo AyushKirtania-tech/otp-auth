@@ -22,6 +22,10 @@ import {
   verifyRegisterToken,
 } from "../middlewares/customer.middleware";
 import prisma from "../config/prisma";
+import { v4 as uuid } from "uuid";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { s3 } from "../config/s3";
 
 const JWT_SECRET = process.env.JWT_SECRET || "";
 
@@ -201,6 +205,51 @@ router.post(
 // Login Route
 // ======================
 
+// Route to get the presigned url
+router.post("/upload/presign", async (req: Request, res: Response) => {
+  try {
+    const { files } = req.body;
+
+    if (!files || !Array.isArray(files)) {
+      return res.status(400).json({
+        success: false,
+        message: "Files arrary missing!!",
+      });
+    }
+
+    const presignedURLs = await Promise.all(
+      files.map(async ({ fileName, fileType }) => {
+        const key = `customer_docs/${uuid()}-${fileName}`;
+
+        const command = new PutObjectCommand({
+          Bucket: process.env.AWS_BUCKET_NAME,
+          Key: key,
+          ContentType: fileType,
+        });
+        const uploadUrl = await getSignedUrl(s3, command, {
+          expiresIn: 300,
+        });
+
+        return {
+          uploadUrl,
+          fileUrl: `https://${process.env.AWS_BUCKET_NAME}.s3.amazonaws.com/${key}`,
+        };
+      })
+    );
+
+    res.json({
+      success: true,
+      urls: presignedURLs,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: "Error generating S3 URLs",
+    });
+  }
+});
+
 router.post("/login/verify", async (req: Request, res: Response) => {
   // Get the phone number and otp from the body
   let phoneNumber = req.body.phoneNumber?.toString().trim();
@@ -370,16 +419,16 @@ router.patch("/update", async (req: Request, res: Response) => {
 router.post("/:customerId/order", async (req: Request, res: Response) => {
   const { customerId } = req.params;
 
-  console.log("customer id: ", customerId)
+  console.log("customer id: ", customerId);
 
   // Validate request body
   const parsed = createOrderSchema.safeParse(req.body);
-  
+
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error });
   }
 
-  const { items, paymentMethod, deliveryDate , paidAmount} = parsed.data;
+  const { items, paymentMethod, deliveryDate, paidAmount } = parsed.data;
 
   try {
     // Check if customer exists
